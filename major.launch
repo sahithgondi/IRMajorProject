@@ -11,7 +11,7 @@
   </node>
 
   <node pkg="MajorProject" type="reactive_controller.py" name="reactive_controller" output="screen">
-    <param name="~forward_speed"    value="0.18"/>
+    <param name="~forward_speed"    value="0.22"/>
     <param name="~turn_speed"       value="0.6"/>
     <param name="~avoid_range_m"    value="0.55"/>
     <param name="~symmetric_eps_m"  value="0.05"/>
