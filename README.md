@@ -1,7 +1,7 @@
 # IRMajorProject
 roslaunch turtlebot_bringup minimal.launch
 
-roslaunch turtlebot_navigation amcl_demo.launch map_file:=urpathtomapfiles
+roslaunch turtlebot_navigation amcl_demo.launch map_file:=/home/gond0013/my_lab_map.yaml
 
 roslaunch turtlebot_rviz_launchers view_navigation.launch
 
