@@ -5,6 +5,6 @@ roslaunch turtlebot_navigation amcl_demo.launch map_file:=/home/gond0013/my_lab_
 
 roslaunch turtlebot_rviz_launchers view_navigation.launch
 
-roslaunch MajorProject major_project.launch
+roslaunch MajorProject major.launch
 
 roslaunch turtlebot_teleop keyboard_teleop.launch
