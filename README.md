@@ -8,3 +8,5 @@ roslaunch turtlebot_rviz_launchers view_navigation.launch
 roslaunch MajorProject major.launch
 
 roslaunch turtlebot_teleop keyboard_teleop.launch
+
+roslaunch MajorProject major.launch start:=A goal:=B
