@@ -1,0 +1,24 @@
+<launch>
+  <param name="use_sim_time" value="false"/>
+
+  <node pkg="depthimage_to_laserscan" type="depthimage_to_laserscan" name="depth_to_laser" output="screen">
+    <remap from="image"       to="/camera/depth/image_raw"/>
+    <remap from="camera_info" to="/camera/depth/camera_info"/>
+    <remap from="scan"        to="/scan"/>
+    <param name="scan_height" value="10"/>
+    <param name="range_min"   value="0.2"/>
+    <param name="output_frame_id" value="camera_depth_frame"/>
+  </node>
+
+  <node pkg="MajorProject" type="reactive_controller.py" name="reactive_controller" output="screen">
+    <param name="~forward_speed"    value="0.18"/>
+    <param name="~turn_speed"       value="0.6"/>
+    <param name="~avoid_range_m"    value="0.55"/>
+    <param name="~symmetric_eps_m"  value="0.05"/>
+    <param name="~teleop_timeout"   value="0.4"/>
+  </node>
+
+  <node pkg="MajorProject" type="deliberative.py" name="deliberative_layer" output="screen">
+    </node>
+
+</launch>
