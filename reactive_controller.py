@@ -25,7 +25,7 @@ class ReactiveController(object):
         # Parameters
         self.forward_speed = rospy.get_param('~forward_speed', 0.2)
         self.turn_speed = rospy.get_param('~turn_speed', 0.6)
-        self.avoid_range_m = rospy.get_param('~avoid_range_m', 0.35)
+        self.avoid_range_m = rospy.get_param('~avoid_range_m', 0.4)
         self.symmetric_eps_m = rospy.get_param('~symmetric_eps_m', 0.05)
         self.escape_spread_rad = rospy.get_param('~escape_spread_rad', math.radians(30.0))
         self.teleop_timeout = rospy.get_param('~teleop_timeout', 0.4)
@@ -216,16 +216,18 @@ class ReactiveController(object):
 
         # --- LAYER 1: EMERGENCY SAFETY (Too Close) ---
         # If we are strictly closer than the hardware limit or safety limit
-#        if min_dist < self.avoid_range_m: 
- #           self.mode = 'AVOID' # Keep name 'AVOID' for stuck-detection compatibility
-  #          cmd.linear.x = 0.0
-   #         
-   #         # Pure Repulsion: Turn away from closest wall
-   #         if self.d_left < self.d_right:
-    #            cmd.angular.z = -self.turn_speed # Turn Right
-     #       else:
-      #          cmd.angular.z = self.turn_speed  # Turn Left
-       #     return cmd
+        if min_dist < self.avoid_range_m: 
+            self.mode = 'AVOID' # Keep name 'AVOID' for stuck-detection compatibility
+            cmd.linear.x = 0.0
+            
+	    # if stuck, turn right until free
+            if self.stuck_triggered == True:
+		cmd.angular.z = -self.turn_speed # Turn Right
+            elif self.d_left < self.d_right: # Pure Repulsion: Turn away from closest wall
+                cmd.angular.z = -self.turn_speed # Turn Right
+            else:
+                cmd.angular.z = self.turn_speed  # Turn Left
+            return cmd
 
 
 # --- LAYER 2: BLENDED NAVIGATION (Vector Field with Memory) ---
@@ -325,4 +327,3 @@ class ReactiveController(object):
 
 if __name__ == '__main__':
     ReactiveController().spin()
-
