@@ -6,8 +6,7 @@ import heapq
 from geometry_msgs.msg import Point, PoseWithCovarianceStamped
 from std_msgs.msg import String, Bool
 
-# --- 1. TOPOLOGICAL MAP ---
-# Replace with your Lab Coordinates
+# the points for our topological map
 NODES = {
     "A": {"x": 0.295, "y": 0.200}, 
     "B": {"x": 4.620, "y": 0.200},
@@ -15,8 +14,7 @@ NODES = {
     "D": {"x": 0.295, "y": 1.234}
 }
 
-# Full connectivity (Square Loop)
-# Format: Start: [(Neighbor, Distance)]
+# points in the format (Neighbor, Distance)
 GRAPH = {
     "A": [("B", 4.8), ("D", 1.5)],
     "B": [("A", 4.8), ("C", 1.5)],
@@ -35,13 +33,14 @@ class DeliberativeLayer:
         rospy.Subscriber('/amcl_pose', PoseWithCovarianceStamped, self.pose_cb)
 
         self.current_pose = None
-        self.path_queue = []        # The current list of nodes to visit
-        self.blocked_edges = []     # List of blocked tuples [('A','B'), ('B','A')]
+        # list of nodes to visit and blocked edges
+        self.path_queue = []       
+        self.blocked_edges = []     
         
-        # State Tracking
-        self.last_visited_node = "A" # Assume start at A
+        # track our current state and goal assume we start with node A
+        self.last_visited_node = "A" 
         self.current_target_node = None
-        self.global_goal_node = None # Where we ultimately want to end up
+        self.global_goal_node = None 
         self.mission_state = "IDLE" 
 
         rospy.sleep(1.0) 
@@ -49,65 +48,53 @@ class DeliberativeLayer:
     def pose_cb(self, msg):
         self.current_pose = msg.pose.pose.position
 
-    # --- 2. DYNAMIC RE-PLANNING ---
+    # replanning and backtracks to last safe spot
     def stuck_callback(self, msg):
-        """
-        Triggered when Reactive Layer says 'I can't move forward'.
-        Handles blocking the edge and BACKTRACKING to the last safe node.
-        """
         if msg.data and self.mission_state == "EXECUTING":
-            rospy.logwarn("OBSTACLE DETECTED! Marking path blocked and Re-planning...")
+            rospy.logwarn("OBSTACLE DETECTED Re-planning...")
 
-            # 1. Stop the robot immediately
+            # stop robot
             self.lcs_pub.publish("STOP")
 
-            # 2. Identify the Blocked Link
-            # We are stuck between 'last_visited' (e.g., A) and 'current_target' (e.g., B)
+            # identify where we are blocked
             if self.last_visited_node and self.current_target_node:
                 u, v = self.last_visited_node, self.current_target_node
 
-                # Mark both directions as blocked
+                # set both as blocked
                 if (u, v) not in self.blocked_edges:
                     self.blocked_edges.append((u, v))
                 if (v, u) not in self.blocked_edges:
                     self.blocked_edges.append((v, u))
 
-                # FIXED: Python 2 compatible formatting
-                rospy.loginfo("Graph Update: Edge {}<->{} is now BLOCKED.".format(u, v))
-
-                # 3. Re-Calculate Path from Last Known Good Node (A) to Global Goal
-                # We do NOT use plan_and_execute here because we need strict control over the queue
+                # log blocked
+                rospy.loginfo("Update: Edge {}<->{} is now Blocked!!".format(u, v))
                 rospy.sleep(1.0) 
                 
-                # Calculate path: e.g., returns ['A', 'D', 'C']
+                # recalculate path
                 new_path = self.get_astar_path(self.last_visited_node, self.global_goal_node)
 
                 if new_path:
-                    # Check if the start node is missing. If so, put it back.
+                    # if start node not added add back
                     if new_path[0] != self.last_visited_node:
                          new_path.insert(0, self.last_visited_node)
 
-                    # 4. EXPLICIT BACKTRACKING LOGIC
-                    # We set the queue to the new path. 
-                    # The first item is 'A' (self.last_visited_node).
+                    # set queue to the new path
                     self.path_queue = new_path
                     
-                    # CRITICAL: We set current_target to None. 
-                    # This forces the run() loop to pop the first item ('A') off the queue immediately.
-                    # This makes the robot physically drive BACK to 'A' before going to 'D'.
+                    # remove a target so we go back to safe node
                     self.current_target_node = None
                     
-                    rospy.loginfo("Backtracking: returning to safe node {} before proceeding.".format(new_path[0]))
+                    rospy.loginfo("Backtracking and returning to safe node {} before continuing.".format(new_path[0]))
                     rospy.loginfo("New Path: {}".format(new_path))
                     
-                    # Resume execution
+                    # resume 
                     self.lcs_pub.publish("GO_TO_POINT")
                     
                 else:
-                    rospy.logerr("CRITICAL: No path found after blocking edge! Robot is stranded.")
+                    rospy.logerr("!!! no path found after blocked edge")
                     self.mission_state = "COMPLETED" # Or some error state
 
-    # --- 3. A* ALGORITHM (With Blockage Check) ---
+    # A* implementation
     def get_astar_path(self, start, goal):
         frontier = []
         heapq.heappush(frontier, (0, start))
@@ -119,13 +106,14 @@ class DeliberativeLayer:
             if current == goal: break
             
             for next_node, dist in GRAPH[current]:
-                # DYNAMIC CHECK: Is this specific edge blocked?
+                # check if edge is blocked
                 if (current, next_node) in self.blocked_edges:
-                    dist = float('inf') # Infinite cost
+                    # set distance to infinity
+                    dist = float('inf')
                 
                 new_cost = cost_so_far[current] + dist
-                
-                if new_cost < float('inf'): # Only process if traversable
+                # only continue if finite distance
+                if new_cost < float('inf'): 
                     if next_node not in cost_so_far or new_cost < cost_so_far[next_node]:
                         cost_so_far[next_node] = new_cost
                         priority = new_cost + self.heuristic(next_node, goal)
@@ -135,81 +123,81 @@ class DeliberativeLayer:
         return self.reconstruct_path(came_from, start, goal)
 
     def heuristic(self, a, b):
-        # Euclidean distance heuristic
+        # use eucledian distance
         return math.sqrt((NODES[a]["x"] - NODES[b]["x"])**2 + (NODES[a]["y"] - NODES[b]["y"])**2)
 
     def reconstruct_path(self, came_from, start, goal):
         current = goal
         path = []
+        # no possible path
         if goal not in came_from: 
-            return [] # No path possible
+            return [] 
+        # otherwise add to path
         while current != start:
             path.append(current)
             current = came_from[current]
         path.reverse()
         return path
 
+    # plan path and execute
     def plan_and_execute(self, start, goal):
         self.global_goal_node = goal
-        # FIXED: Python 2 formatting
         rospy.loginfo("Calculating path from {} to {}...".format(start, goal))
         
         new_path = self.get_astar_path(start, goal)
         
         if not new_path:
-            rospy.logerr("CRITICAL: No valid path found! All routes blocked.")
+            rospy.logerr("!!No valid path found, all routes blocked.")
             self.lcs_pub.publish("STOP")
             self.mission_state = "FAILED"
             return
 
-        # FIXED: Python 2 formatting
         rospy.loginfo("New Plan: {}".format(new_path))
         self.path_queue = new_path
         self.mission_state = "EXECUTING"
 
-    # --- 4. EXECUTION LOOP ---
+    # run function
     def run(self):
-        # WAIT for system ready
         rospy.sleep(2)
         
-        # --- MISSION START: Go from A to C ---
+        # start at node A
         self.last_visited_node = "A"
         self.plan_and_execute("A", "B")
         
         rate = rospy.Rate(10)
         while not rospy.is_shutdown():
             if self.mission_state == "EXECUTING" and self.path_queue:
-                # Peek at next target
+                # check next target
                 target_id = self.path_queue[0]
                 self.current_target_node = target_id
                 
-                # 1. Command Reactive Layer
+                # tell reactive layer to go
                 self.lcs_pub.publish("GO_TO_POINT")
                 
-                # 2. Send Target Coordinates
+                # send coordinates
                 p = Point()
                 p.x = NODES[target_id]["x"]
                 p.y = NODES[target_id]["y"]
                 self.goal_pub.publish(p)
                 
-                # 3. Check for Arrival
+                # check when arrived
                 if self.current_pose:
                     dist = math.sqrt((self.current_pose.x - p.x)**2 + (self.current_pose.y - p.y)**2)
-                    if dist < 0.35: # 0.2m tolerance
-                        # FIXED: Python 2 formatting
+                    if dist < 0.35:
                         rospy.loginfo("Reached Node: {}".format(target_id))
                         
-                        # Update state
+                        # update the current state
                         self.last_visited_node = target_id 
                         self.path_queue.pop(0)
                         
+                        # see if goal reached
                         if not self.path_queue:
-                            rospy.loginfo("Mission Complete! Global Goal Reached.")
+                            rospy.loginfo("Global Goal Reached.")
                             self.lcs_pub.publish("STOP")
                             self.mission_state = "COMPLETED"
             
             elif self.mission_state == "EXECUTING" and not self.path_queue:
-                 self.lcs_pub.publish("STOP") # Just in case
+                 self.lcs_pub.publish("STOP") 
 
             rate.sleep()
 
