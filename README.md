@@ -9,4 +9,4 @@ roslaunch MajorProject major.launch
 
 roslaunch turtlebot_teleop keyboard_teleop.launch
 
-roslaunch MajorProject major.launch start:=A goal:=B
+roslaunch MajorProject major.launch
